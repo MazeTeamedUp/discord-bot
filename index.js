@@ -17,12 +17,6 @@ const {
 } = require("discord.js");
 
 const fs = require("fs");
-const express = require("express");
-
-const app = express();
-
-app.get("/", (req, res) => res.send("Bot is alive"));
-app.listen(3000, () => console.log("Keep-alive server running"));
 
 // ================= CLIENT =================
 const client = new Client({
@@ -31,6 +25,17 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ]
+});
+
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is alive");
+});
+
+app.listen(3000, () => {
+  console.log("Keep-alive server running");
 });
 
 // ================= CONFIG =================
@@ -68,13 +73,19 @@ const ANNOUNCEMENT_MESSAGE = `🌐 **Server Information**
 🛒 Store: https://paragonsmp.fun  
 🎮 Port: 25592`;
 
-// ================= READY ANNOUNCEMENT COMMAND TRIGGERS =================
-client.on("messageCreate", async message => {
+// ================= 🔥 ADDED MESSAGE TRIGGERS =================
+client.on("messageCreate", (message) => {
   if (message.author.bot) return;
 
-  const triggers = ["!ip", "!store", "!shop", "!port", "!info"];
+  const msg = message.content.toLowerCase();
 
-  if (triggers.includes(message.content.toLowerCase())) {
+  if (
+    msg === "!ip" ||
+    msg === "!store" ||
+    msg === "!shop" ||
+    msg === "!port" ||
+    msg === "!info"
+  ) {
     message.channel.send(ANNOUNCEMENT_MESSAGE);
   }
 });
@@ -83,7 +94,9 @@ client.on("messageCreate", async message => {
 const commands = [
   new SlashCommandBuilder().setName("member-count").setDescription("Show member count"),
   new SlashCommandBuilder().setName("close").setDescription("Close ticket (inside ticket only)"),
-  new SlashCommandBuilder().setName("p").setDescription("Partnership commands")
+  new SlashCommandBuilder()
+    .setName("p")
+    .setDescription("Partnership")
     .addSubcommand(s => s.setName("accept").setDescription("Accept partnership"))
 ].map(c => c.toJSON());
 
@@ -99,7 +112,7 @@ async function sendPanel(guild) {
   const embed = new EmbedBuilder()
     .setTitle("🎫 Support Ticket System")
     .setColor(0x2b2d31)
-    .setDescription(`Select a category below.`);
+    .setDescription(`Select a ticket type.`);
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId("ticket_menu")
@@ -136,10 +149,9 @@ client.once("ready", async () => {
 
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
-
   try {
 
-    // ================= PARTNERSHIP SPECIAL START =================
+    // ================= PARTNERSHIP SPECIAL FLOW =================
     if (interaction.isStringSelectMenu() && interaction.customId === "ticket_menu") {
 
       const type = interaction.values[0];
@@ -148,11 +160,11 @@ client.on("interactionCreate", async interaction => {
         return interaction.reply({ content: "❌ You already have a ticket.", ephemeral: true });
       }
 
-      // PARTNERSHIP SPECIAL QUESTION FIRST
+      // PARTNERSHIP SPECIAL START
       if (type === "partnership") {
 
         const modal = new ModalBuilder()
-          .setCustomId("partnership_owner_check")
+          .setCustomId("partner_owner")
           .setTitle("Partnership Setup");
 
         const owner = new TextInputBuilder()
@@ -165,7 +177,7 @@ client.on("interactionCreate", async interaction => {
         return interaction.showModal(modal);
       }
 
-      // NORMAL TICKETS
+      // NORMAL TICKETS (UNCHANGED)
       const modal = new ModalBuilder()
         .setCustomId(`ticket_modal_${type}`)
         .setTitle("Ticket Setup");
@@ -183,10 +195,10 @@ client.on("interactionCreate", async interaction => {
       return interaction.showModal(modal);
     }
 
-    // ================= PARTNERSHIP MODAL =================
-    if (interaction.isModalSubmit() && interaction.customId === "partnership_owner_check") {
+    // ================= PARTNERSHIP CREATE =================
+    if (interaction.isModalSubmit() && interaction.customId === "partner_owner") {
 
-      const ownerAnswer = interaction.fields.getTextInputValue("owner");
+      const owner = interaction.fields.getTextInputValue("owner");
 
       const channel = await interaction.guild.channels.create({
         name: `🤝partner-${interaction.user.username}`,
@@ -194,8 +206,14 @@ client.on("interactionCreate", async interaction => {
         parent: TICKET_CATEGORY_ID,
         topic: `ticket-${interaction.user.id}|partnership`,
         permissionOverwrites: [
-          { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+          {
+            id: interaction.guild.roles.everyone,
+            deny: [PermissionFlagsBits.ViewChannel]
+          },
+          {
+            id: interaction.user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
+          }
         ]
       });
 
@@ -206,19 +224,19 @@ client.on("interactionCreate", async interaction => {
         embeds: [
           new EmbedBuilder()
             .setTitle("🤝 Partnership Ticket")
-            .setDescription(`Owner? ${ownerAnswer}`)
+            .setDescription(`Owner: ${owner}`)
             .setColor(0x00aaff)
         ]
       });
 
-      // partnership questions inside ticket
-      await channel.send("1️⃣ How many players do you have?");
-      await channel.send("2️⃣ Please send us your ad.");
+      // REQUIRED QUESTIONS (ONLY INSIDE TICKET)
+      await channel.send("1 - How many players do you have?");
+      await channel.send("2 - Please send us your ad.");
 
-      return interaction.reply({ content: "🤝 Partnership ticket created!", ephemeral: true });
+      return interaction.reply({ content: "🤝 Ticket created!", ephemeral: true });
     }
 
-    // ================= NORMAL TICKETS =================
+    // ================= NORMAL TICKET CREATION (UNCHANGED) =================
     if (interaction.isModalSubmit() && interaction.customId.startsWith("ticket_modal_")) {
 
       const user = interaction.user;
@@ -230,8 +248,14 @@ client.on("interactionCreate", async interaction => {
         parent: TICKET_CATEGORY_ID,
         topic: `ticket-${user.id}|${type}`,
         permissionOverwrites: [
-          { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+          {
+            id: interaction.guild.roles.everyone,
+            deny: [PermissionFlagsBits.ViewChannel]
+          },
+          {
+            id: user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
+          }
         ]
       });
 
@@ -269,19 +293,12 @@ Type: ${type}`
     // ================= /p accept =================
     if (interaction.isChatInputCommand() && interaction.commandName === "p") {
 
-      if (!interaction.member.roles.cache.some(r => STAFF_ROLES.includes(r.name))) {
-        return interaction.reply({ content: "❌ No permission", ephemeral: true });
-      }
-
       if (interaction.options.getSubcommand() === "accept") {
 
-        const member = interaction.guild.members.cache.get(
-          interaction.channel.topic?.split("|")[0]?.replace("ticket-", "")
-        );
+        const userId = interaction.channel.topic?.split("|")[0]?.replace("ticket-", "");
+        const member = interaction.guild.members.cache.get(userId);
 
         if (member) await member.roles.add(PARTNER_ROLE_ID);
-
-        await interaction.reply("✅ Partnership accepted!");
 
         interaction.channel.send({
           embeds: [
@@ -291,10 +308,12 @@ Type: ${type}`
               .setColor(0x00ff00)
           ]
         });
+
+        return interaction.reply({ content: "✅ Accepted", ephemeral: true });
       }
     }
 
-    // ================= CLOSE (MODAL REASON) =================
+    // ================= CLOSE → ASK REASON =================
     if (interaction.isButton() && interaction.customId === "close") {
 
       const modal = new ModalBuilder()
@@ -312,10 +331,10 @@ Type: ${type}`
       return interaction.showModal(modal);
     }
 
+    // ================= CLOSE HANDLER =================
     if (interaction.isModalSubmit() && interaction.customId === "close_reason") {
 
       const channel = interaction.channel;
-
       const reason = interaction.fields.getTextInputValue("reason") || "No reason specified";
 
       const messages = await channel.messages.fetch();
@@ -328,32 +347,33 @@ Type: ${type}`
       const file = `ticket-${channel.id}.txt`;
       fs.writeFileSync(file, log);
 
-      const topic = channel.topic?.split("|")?.[1] || "unknown";
-      const userId = channel.topic?.split("|")?.[0]?.replace("ticket-", "");
+      const [userId, category] = channel.topic.split("|");
+      const cleanUserId = userId.replace("ticket-", "");
 
       const embed = new EmbedBuilder()
         .setTitle("🎫 Ticket Closed")
         .addFields(
           { name: "Reason", value: reason },
-          { name: "Category", value: topic }
+          { name: "Category", value: category }
         )
         .setColor(0xff0000);
 
       const transcriptChannel = interaction.guild.channels.cache.get(TRANSCRIPT_CHANNEL_ID);
+
       if (transcriptChannel) {
         transcriptChannel.send({ embeds: [embed], files: [file] });
       }
 
-      // DM user transcript
-      if (userId) {
-        const user = await client.users.fetch(userId).catch(() => null);
-        if (user) {
-          user.send({ embeds: [embed], files: [file] }).catch(() => {});
-        }
-        activeTickets.delete(userId);
+      // DM USER
+      const user = await client.users.fetch(cleanUserId).catch(() => null);
+      if (user) {
+        user.send({ embeds: [embed], files: [file] }).catch(() => {});
       }
 
-      await interaction.reply("🔒 Closing ticket...");
+      activeTickets.delete(cleanUserId);
+
+      await interaction.reply({ content: "🔒 Closing ticket..." });
+
       setTimeout(() => channel.delete().catch(() => {}), 2000);
     }
 
@@ -362,8 +382,8 @@ Type: ${type}`
       return interaction.reply(`👥 Members: ${interaction.guild.memberCount}`);
     }
 
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
   }
 });
 

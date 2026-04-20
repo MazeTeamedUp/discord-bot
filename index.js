@@ -145,7 +145,6 @@ client.once("ready", async () => {
     sendPanel(guild);
   }
 
-  sendAnnouncement();
   setInterval(sendAnnouncement, 30 * 60 * 1000);
 });
 

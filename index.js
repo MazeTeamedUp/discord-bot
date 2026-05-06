@@ -54,7 +54,7 @@ const STAFF_ROLES = [
 ];
 const PARTNERSHIP_ROLE_ID = "1462436008372080745";
 const PARTNER_LOG_CHANNEL_ID = "1457341004075106509";
-const FORUM_CHANNEL_ID = "1501613748551548938"; // for accepted partnership posts
+const FORUM_CHANNEL_ID = "1501613748551548938"; // forum for accepted posts
 
 let panelSent = false;
 
@@ -62,10 +62,10 @@ let panelSent = false;
 const activeTickets = new Map();               // userId -> channelId
 const ticketClaims = new Map();               // channelId -> userId
 const ticketQuestionStates = new Map();       // channelId -> { userId, step, questions, answers, evidenceUrl }
-const partnershipAds = new Map();             // userId -> ad (kept for legacy)
+const partnershipAds = new Map();             // userId -> ad (legacy)
 const partnershipAppData = new Map();         // userId -> modal answers
 const awaitingTagsSelection = new Map();      // channelId -> questionState (paused for tags menu)
-const partnershipSubmissions = new Map();     // channelId -> { userId, serverName, ad, discordInvite, store, tags, memberCount, visibility, evidenceUrl }
+const partnershipSubmissions = new Map();     // channelId -> { userId, serverName, ad, discordInvite, store, tags, memberCount, visibility, evidenceUrl, messageId }
 const ticketAcceptanceStatus = new Map();     // channelId -> { accepted: boolean, reviewerId: string }
 const userForumPostMap = new Map();           // userId -> forumPostId
 
@@ -75,7 +75,7 @@ const PARTNERSHIP_QUESTIONS = [
   "What is your server name?",
   "Please send our AD with an @ everyone ping and attach a FULL screenshot of evidence that you sent our AD.\nCopy of our AD below:\n🌐 **Server Information**\n🖥️ IP: `play.paragonsmp.fun`\n🛒 Store: https://paragonsmp.fun\n🎮 Port: 25592",
   "Is your server public or private?",
-  "Please choose your tags",   // will show menu, not a text question
+  "Please choose your tags",   // will show menu
   "How many members do you have?"
 ];
 
@@ -285,8 +285,9 @@ client.on("guildMemberRemove", async (member) => {
   if (userForumPostMap.has(member.id)) {
     const postId = userForumPostMap.get(member.id);
     try {
-      const forumChannel = await member.guild.channels.fetch(FORUM_CHANNEL_ID);
-      if (forumChannel && forumChannel.isThread()) {
+      const guild = member.guild;
+      const forumChannel = await guild.channels.fetch(FORUM_CHANNEL_ID);
+      if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
         const thread = await forumChannel.threads.fetch(postId);
         await thread.delete();
       }
@@ -385,6 +386,7 @@ client.on("interactionCreate", async interaction => {
 
       partnershipAppData.set(user.id, { ownership, prevPartner, store, invite });
 
+      // Create ticket channel
       const channel = await interaction.guild.channels.create({
         name: `🎫ticket-${user.username}`,
         type: ChannelType.GuildText,
@@ -403,6 +405,18 @@ client.on("interactionCreate", async interaction => {
       });
       activeTickets.set(user.id, channel.id);
 
+      // --- Partnership Application Info Embed ---
+      const infoEmbed = new EmbedBuilder()
+        .setTitle("Partnership Application Info")
+        .setColor(0x2b2d31)
+        .addFields(
+          { name: "Applicant", value: `<@${user.id}>`, inline: true },
+          { name: "Ownership", value: ownership, inline: true },
+          { name: "Previous Partner", value: prevPartner, inline: true },
+          { name: "Store", value: store, inline: true },
+          { name: "Discord Invite", value: invite, inline: false }
+        );
+
       const claimBtn = new ButtonBuilder()
         .setCustomId("claim")
         .setLabel("📌 Claim")
@@ -414,6 +428,7 @@ client.on("interactionCreate", async interaction => {
 
       await channel.send({
         content: `<@${user.id}>`,
+        embeds: [infoEmbed],
         components: [new ActionRowBuilder().addComponents(claimBtn, closeBtn)]
       });
 
@@ -766,7 +781,6 @@ Type: ${type}`
     }
 
     // ========== /CLOSE COMMAND (inside ticket) ==========
-    // (already covered by button, but command is registered; we can ignore or just acknowledge)
     if (interaction.isChatInputCommand() && interaction.commandName === "close") {
       return interaction.reply({ content: "Use the close button to provide a reason.", ephemeral: true });
     }

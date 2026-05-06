@@ -16,6 +16,7 @@ const {
   TextInputStyle
 } = require("discord.js");
 const fs = require("fs");
+
 // ================= CLIENT =================
 const client = new Client({
   intents: [
@@ -32,6 +33,7 @@ app.get("/", (req, res) => {
 app.listen(3000, () => {
   console.log("Keep-alive server running");
 });
+
 // ================= CONFIG =================
 const PANEL_CHANNEL_ID = "1411760024363204800";
 const TICKET_CATEGORY_ID = "1456670139486572818";
@@ -52,25 +54,37 @@ const STAFF_ROLES = [
 ];
 const PARTNERSHIP_ROLE_ID = "1462436008372080745";
 const PARTNER_LOG_CHANNEL_ID = "1457341004075106509";
+const FORUM_CHANNEL_ID = "1501613748551548938"; // for accepted partnership posts
+
 let panelSent = false;
-// 🔥 FIXED: active tickets tracking
-const activeTickets = new Map(); // userId -> channelId
-const ticketClaims = new Map(); // channelId -> userId
-// NEW: Partnership question states (sequential questions)
-const ticketQuestionStates = new Map(); // channelId -> { userId, step, questions, answers }
-// NEW: Partnership ads saved in memory (userId -> ad) - only saved when they answer the ad question
-const partnershipAds = new Map();
-// Partnership questions (asked one by one inside the ticket)
+
+// ================= STATE MAPS =================
+const activeTickets = new Map();               // userId -> channelId
+const ticketClaims = new Map();               // channelId -> userId
+const ticketQuestionStates = new Map();       // channelId -> { userId, step, questions, answers, evidenceUrl }
+const partnershipAds = new Map();             // userId -> ad (kept for legacy)
+const partnershipAppData = new Map();         // userId -> modal answers
+const awaitingTagsSelection = new Map();      // channelId -> questionState (paused for tags menu)
+const partnershipSubmissions = new Map();     // channelId -> { userId, serverName, ad, discordInvite, store, tags, memberCount, visibility, evidenceUrl }
+const ticketAcceptanceStatus = new Map();     // channelId -> { accepted: boolean, reviewerId: string }
+const userForumPostMap = new Map();           // userId -> forumPostId
+
+// ================= PARTNERSHIP QUESTIONS =================
 const PARTNERSHIP_QUESTIONS = [
-  "Are you the owner of this server?",
-  "How many players do you have?",
-  "Please send us your ad."
+  "Please provide your full advertisement without any links and only use normal emojis!",
+  "What is your server name?",
+  "Please send our AD with an @ everyone ping and attach a FULL screenshot of evidence that you sent our AD.\nCopy of our AD below:\n🌐 **Server Information**\n🖥️ IP: `play.paragonsmp.fun`\n🛒 Store: https://paragonsmp.fun\n🎮 Port: 25592",
+  "Is your server public or private?",
+  "Please choose your tags",   // will show menu, not a text question
+  "How many members do you have?"
 ];
+
 // ================= ANNOUNCEMENT =================
 const ANNOUNCEMENT_MESSAGE = `🌐 **Server Information**
 🖥️ IP: \`play.paragonsmp.fun\`
 🛒 Store: https://paragonsmp.fun
-🎮 Port: 25592` ;
+🎮 Port: 25592`;
+
 async function sendAnnouncement() {
   client.guilds.cache.forEach(guild => {
     const channel = guild.channels.cache.find(
@@ -80,6 +94,7 @@ async function sendAnnouncement() {
     channel.send(ANNOUNCEMENT_MESSAGE).catch(() => {});
   });
 }
+
 // ================= SLASH COMMANDS =================
 const commands = [
   new SlashCommandBuilder().setName("member-count").setDescription("Show member count"),
@@ -87,6 +102,7 @@ const commands = [
   new SlashCommandBuilder().setName("close").setDescription("Close ticket (inside ticket only)")
 ].map(c => c.toJSON());
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
 // ================= PANEL =================
 async function sendPanel(guild) {
   if (panelSent) return;
@@ -119,6 +135,7 @@ Please make sure your ticket includes all necessary details to help us assist yo
   });
   panelSent = true;
 }
+
 // ================= READY =================
 client.once("ready", async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
@@ -129,46 +146,158 @@ client.once("ready", async () => {
     );
     sendPanel(guild);
   }
-  // 🔥 AUTO ANNOUNCEMENT EVERY 30 MINUTES HAS BEEN REMOVED (as you requested)
-  // Only !ip !store !shop !port !info will trigger it now
 });
-// ================= MESSAGE CREATE (for !ip commands + sequential partnership questions) =================
+
+// ================= MESSAGE CREATE =================
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   const content = message.content.toLowerCase().trim();
-  // 🔥 AUTO ANNOUNCEMENT ON !ip !store !shop !port !info
+  // Manual info commands
   if (["!ip", "!store", "!shop", "!port", "!info"].includes(content)) {
     await message.channel.send(ANNOUNCEMENT_MESSAGE).catch(() => {});
     return;
   }
-  // 🔥 SEQUENTIAL QUESTIONS FOR PARTNERSHIP TICKETS
+  // Sequential questions for partnership tickets (text only)
   if (!ticketQuestionStates.has(message.channel.id)) return;
   const state = ticketQuestionStates.get(message.channel.id);
-  // Only the ticket owner can answer
   if (message.author.id !== state.userId) return;
-  // Save the answer
-  state.answers.push(message.content);
+  // Handle evidence question (Q3) - capture attachment
+  if (state.step === 2) {
+    if (message.attachments.size > 0) {
+      state.evidenceUrl = message.attachments.first().url;
+    }
+    // save any text anyway as the answer (the ping + maybe message)
+    state.answers.push(message.content);
+  } else {
+    state.answers.push(message.content);
+  }
   const nextStep = state.step + 1;
   if (nextStep < state.questions.length) {
-    // Send next question
+    if (nextStep === 4) { // tags question
+      // Pause text Q&A and show tags menu
+      await sendTagsMenu(message.channel, state);
+      return;
+    }
     state.step = nextStep;
     await message.channel.send(`**Question ${nextStep + 1}:** ${state.questions[nextStep]}`);
   } else {
-    // All questions answered - save the ad (the answer to "Please send us your ad.")
-    const ad = state.answers[2]; // 3rd answer is always the ad
-    partnershipAds.set(state.userId, ad);
-    await message.channel.send(
-      "✅ Thank you for answering all questions! Please ping one of our staff members once and wait."
-    );
+    // All answers collected
+    await showSubmissionSummary(message.channel, state);
     ticketQuestionStates.delete(message.channel.id);
   }
 });
-// ================= GUILD MEMBER REMOVE (NEW - tracks partners who leave) =================
+
+async function sendTagsMenu(channel, state) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("partnership_tags")
+    .setPlaceholder("Select your tags (multiple allowed)")
+    .setMinValues(1)
+    .setMaxValues(10) // adjust as needed
+    .addOptions([
+      { label: "Written Applications", value: "written_applications" },
+      { label: "Video Applications", value: "video_applications" },
+      { label: "NA", value: "na" },
+      { label: "EU", value: "eu" },
+      { label: "AS", value: "as" },
+      { label: "All Regions", value: "all_regions" },
+      { label: "Vanilla", value: "vanilla" },
+      { label: "Java", value: "java" },
+      { label: "Bedrock", value: "bedrock" },
+      { label: "SMP Finder", value: "smp_finder" }
+    ]);
+  await channel.send({
+    content: "**Question 5:** Please choose your tags",
+    components: [new ActionRowBuilder().addComponents(menu)]
+  });
+  // Save state to resume later
+  awaitingTagsSelection.set(channel.id, state);
+  ticketQuestionStates.delete(channel.id);
+}
+
+async function showSubmissionSummary(channel, state) {
+  const {
+    userId,
+    answers,
+    evidenceUrl
+  } = state;
+  // answers: [ad, serverName, evidenceText, visibility, tags?, memberCount?]
+  const ad = answers[0];
+  const serverName = answers[1];
+  const visibility = answers[3];
+  const tags = answers[4] || "Not selected";
+  const memberCount = answers[5] || "Not provided";
+  // Retrieve modal data
+  const modalData = partnershipAppData.get(userId) || {};
+  const ownership = modalData.ownership || "Unknown";
+  const prevPartner = modalData.prevPartner || "Unknown";
+  const store = modalData.store === "None" ? "None" : modalData.store || "None";
+  const discordInvite = modalData.invite || "Unknown";
+
+  const embed = new EmbedBuilder()
+    .setTitle("Complete Partnership Submission")
+    .setColor(0x2b2d31)
+    .addFields(
+      { name: "Applicant", value: `<@${userId}>`, inline: true },
+      { name: "Server Name", value: serverName, inline: true },
+      { name: "Ownership", value: ownership, inline: true },
+      { name: "Previous Partner", value: prevPartner, inline: true },
+      { name: "Store", value: store, inline: true },
+      { name: "Discord Invite", value: discordInvite, inline: true },
+      { name: "Advertisement", value: ad || "None", inline: false },
+      { name: "Evidence", value: evidenceUrl ? `[Image](${evidenceUrl})` : "No evidence attached", inline: true },
+      { name: "Visibility", value: visibility, inline: true },
+      { name: "Tags", value: tags, inline: false },
+      { name: "Members", value: memberCount, inline: true }
+    );
+
+  const acceptBtn = new ButtonBuilder()
+    .setCustomId("p_accept")
+    .setLabel("Accept")
+    .setStyle(ButtonStyle.Success);
+  const denyBtn = new ButtonBuilder()
+    .setCustomId("p_deny")
+    .setLabel("Deny")
+    .setStyle(ButtonStyle.Danger);
+
+  const msg = await channel.send({
+    embeds: [embed],
+    components: [new ActionRowBuilder().addComponents(acceptBtn, denyBtn)]
+  });
+
+  // Store submission data for later use
+  partnershipSubmissions.set(channel.id, {
+    userId,
+    serverName,
+    ad,
+    discordInvite,
+    store,
+    tags,
+    memberCount,
+    visibility,
+    evidenceUrl,
+    messageId: msg.id
+  });
+}
+
+// ================= GUILD MEMBER REMOVE =================
 client.on("guildMemberRemove", async (member) => {
-  // Only trigger if they had a saved ad AND still had the partner role when leaving
+  // Remove forum post if exists
+  if (userForumPostMap.has(member.id)) {
+    const postId = userForumPostMap.get(member.id);
+    try {
+      const forumChannel = await member.guild.channels.fetch(FORUM_CHANNEL_ID);
+      if (forumChannel && forumChannel.isThread()) {
+        const thread = await forumChannel.threads.fetch(postId);
+        await thread.delete();
+      }
+    } catch (e) {
+      console.error("Failed to delete forum post on leave:", e);
+    }
+    userForumPostMap.delete(member.id);
+  }
+  // Legacy ad removal (still works)
   if (!partnershipAds.has(member.id)) return;
   if (!member.roles.cache.has(PARTNERSHIP_ROLE_ID)) return;
-
   const ad = partnershipAds.get(member.id);
   const logChannel = member.guild.channels.cache.get(PARTNER_LOG_CHANNEL_ID);
   if (logChannel && logChannel.isTextBased()) {
@@ -182,13 +311,12 @@ client.on("guildMemberRemove", async (member) => {
       embeds: [leaveEmbed, adEmbed]
     }).catch(() => {});
   }
-  // Send private DM to the user who left
   try {
     await member.user.send("You have left the server which means your ad will be taken down.");
   } catch (e) {}
-  // Clean up memory
   partnershipAds.delete(member.id);
 });
+
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
   try {
@@ -199,79 +327,40 @@ client.on("interactionCreate", async interaction => {
         return interaction.reply({ content: "❌ You already have a ticket.", ephemeral: true });
       }
       const type = interaction.values[0];
-      // 🔥 SPECIAL HANDLING FOR PARTNERSHIP (no modal, direct ticket + sequential questions)
+      // PARTNERSHIP: show special modal
       if (type === "partnership") {
-        const channel = await interaction.guild.channels.create({
-          name: `🎫ticket-${user.username}`,
-          type: ChannelType.GuildText,
-          parent: TICKET_CATEGORY_ID,
-          topic: `ticket-${user.id}|${type}`,
-          permissionOverwrites: [
-            {
-              id: interaction.guild.roles.everyone,
-              deny: [PermissionFlagsBits.ViewChannel]
-            },
-            {
-              id: user.id,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
-            }
-          ]
-        });
-        activeTickets.set(user.id, channel.id);
-        const embed = new EmbedBuilder()
-          .setTitle(`🎫 Ticket - ${user.username} (Partnership)`)
-          .setDescription("Partnership request - please answer the following questions below.")
-          .setColor(0x00aaff);
-        const claimBtn = new ButtonBuilder()
-          .setCustomId("claim")
-          .setLabel("📌 Claim")
-          .setStyle(ButtonStyle.Primary);
-        const closeBtn = new ButtonBuilder()
-          .setCustomId("close")
-          .setLabel("❌ Close & Transcript")
-          .setStyle(ButtonStyle.Danger);
-        await channel.send({
-          content: `<@${user.id}>`,
-          embeds: [embed],
-          components: [new ActionRowBuilder().addComponents(claimBtn, closeBtn)]
-        });
-        // 🤝 PARTNERSHIP EMBEDS (same as before)
-        await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("🤝 Partnership")
-              .setDescription("One way ping - lower server pings everyone")
-              .setColor(0x00aaff)
-          ]
-        });
-        await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("🔁 Two Way Ping")
-              .setDescription("Both servers equal → both use @here")
-              .setColor(0x00aaff)
-          ]
-        });
-        await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("⚠️ Rules")
-              .setDescription("Leaving = ad removed")
-              .setColor(0xff0000)
-          ]
-        });
-        // 🔥 Start sequential questions
-        ticketQuestionStates.set(channel.id, {
-          userId: user.id,
-          step: 0,
-          questions: PARTNERSHIP_QUESTIONS,
-          answers: []
-        });
-        // Send first question immediately
-        await channel.send(`**Question 1:** ${PARTNERSHIP_QUESTIONS[0]}`);
-        return interaction.reply({ content: "🎫 Partnership ticket created! Please answer the questions in the ticket channel.", ephemeral: true });
+        const modal = new ModalBuilder()
+          .setCustomId("partnership_modal")
+          .setTitle("Partnership Application");
+        const ownershipInput = new TextInputBuilder()
+          .setCustomId("ownership")
+          .setLabel("Are you the owner of the server?")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+        const prevPartnerInput = new TextInputBuilder()
+          .setCustomId("prev_partner")
+          .setLabel("Have you partnered with us before?")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+        const storeInput = new TextInputBuilder()
+          .setCustomId("store")
+          .setLabel("Store link (or type None)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+        const inviteInput = new TextInputBuilder()
+          .setCustomId("invite")
+          .setLabel("Discord Invite (25+ members)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true);
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(ownershipInput),
+          new ActionRowBuilder().addComponents(prevPartnerInput),
+          new ActionRowBuilder().addComponents(storeInput),
+          new ActionRowBuilder().addComponents(inviteInput)
+        );
+        return interaction.showModal(modal);
       }
-      // ========== NORMAL TICKETS (show modal) ==========
+      // NORMAL TICKETS: general modal
       const modal = new ModalBuilder()
         .setCustomId(`ticket_modal_${type}`)
         .setTitle("Ticket Setup");
@@ -285,7 +374,62 @@ client.on("interactionCreate", async interaction => {
       );
       return interaction.showModal(modal);
     }
-    // ========== CREATE NORMAL TICKET (MODAL SUBMIT) ==========
+
+    // ========== PARTNERSHIP MODAL SUBMIT ==========
+    if (interaction.isModalSubmit() && interaction.customId === "partnership_modal") {
+      const user = interaction.user;
+      const ownership = interaction.fields.getTextInputValue("ownership");
+      const prevPartner = interaction.fields.getTextInputValue("prev_partner");
+      const store = interaction.fields.getTextInputValue("store");
+      const invite = interaction.fields.getTextInputValue("invite");
+
+      partnershipAppData.set(user.id, { ownership, prevPartner, store, invite });
+
+      const channel = await interaction.guild.channels.create({
+        name: `🎫ticket-${user.username}`,
+        type: ChannelType.GuildText,
+        parent: TICKET_CATEGORY_ID,
+        topic: `ticket-${user.id}|partnership`,
+        permissionOverwrites: [
+          {
+            id: interaction.guild.roles.everyone,
+            deny: [PermissionFlagsBits.ViewChannel]
+          },
+          {
+            id: user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
+          }
+        ]
+      });
+      activeTickets.set(user.id, channel.id);
+
+      const claimBtn = new ButtonBuilder()
+        .setCustomId("claim")
+        .setLabel("📌 Claim")
+        .setStyle(ButtonStyle.Primary);
+      const closeBtn = new ButtonBuilder()
+        .setCustomId("close")
+        .setLabel("❌ Close & Transcript")
+        .setStyle(ButtonStyle.Danger);
+
+      await channel.send({
+        content: `<@${user.id}>`,
+        components: [new ActionRowBuilder().addComponents(claimBtn, closeBtn)]
+      });
+
+      // Start sequential questions
+      ticketQuestionStates.set(channel.id, {
+        userId: user.id,
+        step: 0,
+        questions: PARTNERSHIP_QUESTIONS,
+        answers: [],
+        evidenceUrl: null
+      });
+      await channel.send(`**Question 1:** ${PARTNERSHIP_QUESTIONS[0]}`);
+      return interaction.reply({ content: "🎫 Partnership ticket created! Please answer the questions in the ticket channel.", ephemeral: true });
+    }
+
+    // ========== NORMAL TICKET MODAL SUBMIT ==========
     if (interaction.isModalSubmit() && interaction.customId.startsWith("ticket_modal_")) {
       const user = interaction.user;
       const type = interaction.customId.replace("ticket_modal_", "");
@@ -330,6 +474,25 @@ Type: ${type}`
       });
       return interaction.reply({ content: "🎫 Ticket created!", ephemeral: true });
     }
+
+    // ========== TAGS MENU SELECTION ==========
+    if (interaction.isStringSelectMenu() && interaction.customId === "partnership_tags") {
+      if (!awaitingTagsSelection.has(interaction.channel.id)) {
+        return interaction.reply({ content: "No active tag selection.", ephemeral: true });
+      }
+      const state = awaitingTagsSelection.get(interaction.channel.id);
+      const selected = interaction.values;
+      const tagsString = selected.join(", ");
+      // Save answer and continue to last question
+      state.answers.push(tagsString);
+      state.step = 5; // next is member count (index 5)
+      await interaction.update({ content: `✅ Tags selected: ${tagsString}`, components: [] });
+      await interaction.channel.send(`**Question 6:** ${PARTNERSHIP_QUESTIONS[5]}`);
+      ticketQuestionStates.set(interaction.channel.id, state);
+      awaitingTagsSelection.delete(interaction.channel.id);
+      return;
+    }
+
     // ========== CLAIM ==========
     if (interaction.isButton() && interaction.customId === "claim") {
       if (!STAFF_ROLES.some(r =>
@@ -350,6 +513,7 @@ Type: ${type}`
         components: [new ActionRowBuilder().addComponents(unclaim)]
       });
     }
+
     // ========== UNCLAIM ==========
     if (interaction.isButton() && interaction.customId === "unclaim") {
       ticketClaims.delete(interaction.channel.id);
@@ -367,7 +531,8 @@ Type: ${type}`
         components: [new ActionRowBuilder().addComponents(claim)]
       });
     }
-    // ========== CLOSE BUTTON → OPEN REASON MODAL ==========
+
+    // ========== CLOSE BUTTON → REASON MODAL ==========
     if (interaction.isButton() && interaction.customId === "close") {
       const modal = new ModalBuilder()
         .setCustomId("close_reason_modal")
@@ -380,7 +545,8 @@ Type: ${type}`
       modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
       return interaction.showModal(modal);
     }
-    // ========== CLOSE REASON MODAL SUBMIT (FIXED + ALL NEW REQUESTS) ==========
+
+    // ========== CLOSE REASON MODAL SUBMIT ==========
     if (interaction.isModalSubmit() && interaction.customId === "close_reason_modal") {
       await interaction.deferReply({ ephemeral: false });
       const reason = interaction.fields.getTextInputValue("reason")?.trim() || "No reason specified";
@@ -401,24 +567,37 @@ Type: ${type}`
       ).join("\n");
       const file = `ticket-${channel.id}.txt`;
       fs.writeFileSync(file, log || "No messages");
+
       const transcriptChannel = interaction.guild.channels.cache.get(TRANSCRIPT_CHANNEL_ID);
+      const embed = new EmbedBuilder()
+        .setTitle("🎫 Ticket Closed")
+        .setColor(0xff0000)
+        .addFields(
+          { name: "👤 Created by", value: `<@${userId}>`, inline: true },
+          { name: "👮 Closed by", value: `${interaction.user.tag}`, inline: true },
+          { name: "📌 Reason", value: reason, inline: false },
+          { name: "📂 Category", value: type, inline: false }
+        );
+      // Add partnership status if applicable
+      const status = ticketAcceptanceStatus.get(channel.id);
+      if (type === "partnership" && status) {
+        embed.addFields({
+          name: "🤝 Partnership Status",
+          value: status.accepted
+            ? `Accepted by <@${status.reviewerId}>`
+            : "Denied",
+          inline: false
+        });
+      }
+      embed.setFooter({ text: "Ticket System" });
+
       if (transcriptChannel) {
-        const embed = new EmbedBuilder()
-          .setTitle("🎫 Ticket Closed")
-          .setColor(0xff0000)
-          .addFields(
-            { name: "👤 Created by", value: `<@${userId}>`, inline: true },
-            { name: "👮 Closed by", value: `${interaction.user.tag}`, inline: true },
-            { name: "📌 Reason", value: reason, inline: false },
-            { name: "📂 Category", value: type, inline: false }
-          )
-          .setFooter({ text: "Ticket System" });
         await transcriptChannel.send({
           embeds: [embed],
           files: [file]
         });
       }
-      // 🔥 Send transcript privately to the ticket opener (ONLY his ticket)
+      // DM transcript to ticket owner
       if (userId) {
         try {
           const opener = await client.users.fetch(userId);
@@ -437,22 +616,24 @@ Type: ${type}`
       // Cleanup
       if (userId) activeTickets.delete(userId);
       ticketClaims.delete(channel.id);
-      if (ticketQuestionStates.has(channel.id)) ticketQuestionStates.delete(channel.id);
+      ticketQuestionStates.delete(channel.id);
+      partnershipSubmissions.delete(channel.id);
+      ticketAcceptanceStatus.delete(channel.id);
       await interaction.editReply({ content: "🔒 Ticket closed and transcript saved!" });
       setTimeout(() => channel.delete().catch(() => {}), 2500);
       return;
     }
+
     // ========== MEMBER COUNT ==========
     if (interaction.isChatInputCommand() && interaction.commandName === "member-count") {
       return interaction.reply(`👥 Members: ${interaction.guild.memberCount}`);
     }
-    // ========== /P-ACCEPT (NEW) ==========
+
+    // ========== /P-ACCEPT (old command kept for compatibility) ==========
     if (interaction.isChatInputCommand() && interaction.commandName === "p-accept") {
       if (!STAFF_ROLES.some(r =>
         interaction.member.roles.cache.some(x => x.name === r)
-      )) {
-        return interaction.reply({ content: "❌ No permission", ephemeral: true });
-      }
+      )) return interaction.reply({ content: "❌ No permission", ephemeral: true });
       const channel = interaction.channel;
       if (!channel || !channel.topic || !channel.topic.includes("|partnership")) {
         return interaction.reply({ content: "❌ This command can only be used inside a partnership ticket.", ephemeral: true });
@@ -462,9 +643,7 @@ Type: ${type}`
       const role = interaction.guild.roles.cache.get(PARTNERSHIP_ROLE_ID);
       if (!role) return interaction.reply({ content: "❌ Partnership role not found.", ephemeral: true });
       const member = await interaction.guild.members.fetch(userId).catch(() => null);
-      if (member) {
-        await member.roles.add(role).catch(() => {});
-      }
+      if (member) await member.roles.add(role).catch(() => {});
       return interaction.reply({
         embeds: [
           new EmbedBuilder()
@@ -474,6 +653,124 @@ Type: ${type}`
         ]
       });
     }
+
+    // ========== PARTNERSHIP ACCEPT BUTTON ==========
+    if (interaction.isButton() && interaction.customId === "p_accept") {
+      // Staff check
+      if (!STAFF_ROLES.some(r => interaction.member.roles.cache.some(x => x.name === r))) {
+        return interaction.reply({ content: "❌ You must be staff+ to use this button.", ephemeral: true });
+      }
+      const submission = partnershipSubmissions.get(interaction.channel.id);
+      if (!submission) return interaction.reply({ content: "❌ Submission not found.", ephemeral: true });
+
+      const { userId, serverName, ad, discordInvite, store, tags } = submission;
+      const reviewer = interaction.user;
+
+      // Create forum post in the specified channel
+      try {
+        const forumChannel = await interaction.guild.channels.fetch(FORUM_CHANNEL_ID);
+        if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
+          console.error("Forum channel not found or not a forum");
+        } else {
+          // Map tag names to forum channel's available tags
+          const tagNames = tags.split(",").map(t => t.trim().toLowerCase());
+          const matchingTags = forumChannel.availableTags.filter(t =>
+            tagNames.includes(t.name.toLowerCase())
+          );
+          const tagIds = matchingTags.map(t => t.id);
+
+          const postContent = [
+            `**Advertisement:**\n${ad}`,
+            `**Discord Invite:** ${discordInvite}`,
+            store !== "None" ? `**Store:** ${store}` : ""
+          ].filter(Boolean).join("\n\n");
+
+          const post = await forumChannel.threads.create({
+            name: serverName,
+            message: { content: postContent },
+            appliedTags: tagIds
+          });
+          userForumPostMap.set(userId, post.id);
+        }
+      } catch (err) {
+        console.error("Failed to create forum post:", err);
+      }
+
+      // Send DM to applicant
+      try {
+        const user = await client.users.fetch(userId);
+        const dmEmbed = new EmbedBuilder()
+          .setTitle("Partnership Application Accepted!")
+          .setDescription(`Congratulations! Your partnership application has been accepted!`)
+          .addFields(
+            { name: "Server Name", value: serverName },
+            { name: "Reviewed By", value: `${reviewer.tag} (<@${reviewer.id}>)` }
+          )
+          .setFooter({ text: "Paragon SMP Staff Team" })
+          .setTimestamp()
+          .setColor(0x00ff00);
+        await user.send({ embeds: [dmEmbed] });
+      } catch (dmErr) {
+        console.error("Failed to DM applicant on accept:", dmErr);
+      }
+
+      // Grant partner role
+      const member = await interaction.guild.members.fetch(userId).catch(() => null);
+      if (member) {
+        await member.roles.add(PARTNERSHIP_ROLE_ID).catch(() => {});
+      }
+
+      // Record acceptance status for transcript
+      ticketAcceptanceStatus.set(interaction.channel.id, { accepted: true, reviewerId: reviewer.id });
+
+      // Update the submission message to remove buttons and show accepted
+      await interaction.update({
+        embeds: [
+          EmbedBuilder.from(interaction.message.embeds[0])
+            .setFooter({ text: "Accepted by " + reviewer.tag })
+            .setColor(0x00ff00)
+        ],
+        components: []
+      });
+
+      return;
+    }
+
+    // ========== PARTNERSHIP DENY BUTTON ==========
+    if (interaction.isButton() && interaction.customId === "p_deny") {
+      if (!STAFF_ROLES.some(r => interaction.member.roles.cache.some(x => x.name === r))) {
+        return interaction.reply({ content: "❌ You must be staff+ to use this button.", ephemeral: true });
+      }
+      const submission = partnershipSubmissions.get(interaction.channel.id);
+      if (!submission) return interaction.reply({ content: "❌ Submission not found.", ephemeral: true });
+
+      const { userId } = submission;
+      try {
+        const user = await client.users.fetch(userId);
+        await user.send("Partnership denied. You can remove our ad.");
+      } catch (dmErr) {
+        console.error("Failed to DM applicant on deny:", dmErr);
+      }
+
+      ticketAcceptanceStatus.set(interaction.channel.id, { accepted: false, reviewerId: interaction.user.id });
+
+      await interaction.update({
+        embeds: [
+          EmbedBuilder.from(interaction.message.embeds[0])
+            .setFooter({ text: "Denied by " + interaction.user.tag })
+            .setColor(0xff0000)
+        ],
+        components: []
+      });
+      return;
+    }
+
+    // ========== /CLOSE COMMAND (inside ticket) ==========
+    // (already covered by button, but command is registered; we can ignore or just acknowledge)
+    if (interaction.isChatInputCommand() && interaction.commandName === "close") {
+      return interaction.reply({ content: "Use the close button to provide a reason.", ephemeral: true });
+    }
+
   } catch (e) {
     console.error(e);
     if (!interaction.replied && !interaction.deferred) {
@@ -481,5 +778,6 @@ Type: ${type}`
     }
   }
 });
+
 // ================= LOGIN =================
 client.login(process.env.TOKEN);

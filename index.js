@@ -199,9 +199,8 @@ client.on("messageCreate", async (message) => {
       pingReq = "no ping";
     }
 
-    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
-Copy of our AD below:
-
+    // Send the ad as a SEPARATE message
+    await message.channel.send(`**Our AD:**
 # 🌍 PARGON SMP 🌍
 ## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
 
@@ -214,15 +213,15 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 • Events, builds, and long-term progression
 • Supports TLauncher ✅
 
-
 🛠️ Whether you're a builder, explorer, redstone genius, or just here to vibe, Pargon SMP is the place to grow, grind, and have fun together.
 
 🚀 Join early. Build your legacy.
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-|| Ping||
+@ Ping`);
 
-*Make sure to include the ping in the screenshot.*`;
+    // Send the question/instructions as a separate message
+    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;
 
     state.questions[3] = dynamicQ; // update the placeholder
     // Now fall through to send the next question
@@ -688,7 +687,7 @@ Type: ${type}`
               appliedTags: tagIds
             });
 
-            // Send server logo first
+            // Send SERVER LOGO first
             if (serverPhotoUrl) {
               await post.send({ embeds: [new EmbedBuilder().setTitle("🖼️ Server Logo").setImage(serverPhotoUrl).setColor(0x00aaff)] });
             } else {

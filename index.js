@@ -201,13 +201,11 @@ client.on("messageCreate", async (message) => {
 
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
 
-**Copy of our AD below in a new message:**
+**The correct ping for our ad is: ${pingReq}**
+Make sure to include the ping in the screenshot.`;
 
-Make sure to include the correct ping (${pingReq}) in the screenshot.`;
-
-    // Send the actual ad in a separate message
-    await message.channel.send(`**Our Advertisement:**
-\`\`\`
+    // Send the ad as a separate message
+    await message.channel.send(`**Our AD:**
 # 🌍 PARGON SMP 🌍
 ## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
 
@@ -225,10 +223,10 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 🚀 Join early. Build your legacy.
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-@ Ping
-\`\`\``);
+@ Ping`);
 
     state.questions[3] = dynamicQ; // update the placeholder
+    // Now fall through to send the next question
   }
 
   // After tags question (step 6) we show the summary; after step 6 is done, we call summary
@@ -283,6 +281,7 @@ async function showSubmissionSummary(channel, state) {
   const ad = answers[0];
   const serverName = answers[1];
   const memberCount = answers[2];
+  const evidenceText = answers[3] || "";
   const visibility = answers[5];
   const tags = answers[6] || "Not selected";
 
@@ -292,8 +291,7 @@ async function showSubmissionSummary(channel, state) {
   const store = modalData.store === "None" ? "None" : modalData.store || "None";
   const discordInvite = modalData.invite || "Unknown";
 
-  // Create main embed with basic info
-  const mainEmbed = new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle("Complete Partnership Submission")
     .setColor(0x2b2d31)
     .addFields(
@@ -303,37 +301,21 @@ async function showSubmissionSummary(channel, state) {
       { name: "Previous Partner", value: prevPartner, inline: true },
       { name: "Store", value: store, inline: true },
       { name: "Discord Invite", value: discordInvite, inline: true },
+      { name: "Advertisement", value: ad || "None", inline: false },
+      { name: "Server Logo", value: serverPhotoUrl ? `[Image](${serverPhotoUrl})` : "Not provided", inline: true },
+      { name: "Evidence", value: evidenceUrl ? `[Image](${evidenceUrl})` : "No evidence", inline: true },
       { name: "Visibility", value: visibility, inline: true },
       { name: "Tags", value: tags, inline: false },
       { name: "Members", value: memberCount, inline: true }
     );
 
-  // Create ad embed with the advertisement in a separate message
-  const adEmbed = new EmbedBuilder()
-    .setTitle("📢 Advertisement")
-    .setColor(0x00aaff)
-    .setDescription(ad || "Not provided");
-
-  // Create server logo embed (SHOWN FIRST as requested)
-  const serverLogoEmbed = new EmbedBuilder()
-    .setTitle("🖼️ Server Logo")
-    .setColor(0x00aaff);
-  
+  // Send server photo as image embed
   if (serverPhotoUrl) {
-    serverLogoEmbed.setImage(serverPhotoUrl);
-  } else {
-    serverLogoEmbed.setDescription("No server logo provided");
-  }
-
-  // Create evidence embed
-  const evidenceEmbed = new EmbedBuilder()
-    .setTitle("📎 Evidence Screenshot")
-    .setColor(0x00aaff);
-  
-  if (evidenceUrl) {
-    evidenceEmbed.setImage(evidenceUrl);
-  } else {
-    evidenceEmbed.setDescription("No evidence provided");
+    const serverPhotoEmbed = new EmbedBuilder()
+      .setTitle("🖼️ Server Logo")
+      .setImage(serverPhotoUrl)
+      .setColor(0x00aaff);
+    await channel.send({ embeds: [serverPhotoEmbed] });
   }
 
   const acceptBtn = new ButtonBuilder()
@@ -345,15 +327,8 @@ async function showSubmissionSummary(channel, state) {
     .setLabel("Deny")
     .setStyle(ButtonStyle.Danger);
 
-  // Send all embeds in order: main info, server logo (FIRST), ad, evidence
-  await channel.send({ embeds: [mainEmbed] });
-  await channel.send({ embeds: [serverLogoEmbed] });
-  await channel.send({ embeds: [adEmbed] });
-  await channel.send({ embeds: [evidenceEmbed] });
-  
-  // Send action buttons
-  const actionMsg = await channel.send({
-    content: "**Use the buttons below to accept or deny this partnership:**",
+  const msg = await channel.send({
+    embeds: [embed],
     components: [new ActionRowBuilder().addComponents(acceptBtn, denyBtn)]
   });
 
@@ -368,7 +343,7 @@ async function showSubmissionSummary(channel, state) {
     visibility,
     evidenceUrl,
     serverPhotoUrl,
-    messageId: actionMsg.id
+    messageId: msg.id
   });
 }
 
@@ -581,7 +556,7 @@ Type: ${type}`
       return;
     }
 
-    // ========== CLAIM / UNCLAIM / CLOSE ==========
+    // ========== CLAIM / UNCLAIM / CLOSE (same as before) ==========
     if (interaction.isButton() && interaction.customId === "claim") {
       if (!STAFF_ROLES.some(r => interaction.member.roles.cache.some(x => x.name === r)))
         return interaction.reply({ content: "❌ No permission", ephemeral: true });
@@ -719,7 +694,7 @@ Type: ${type}`
 
             const post = await forumChannel.threads.create({
               name: serverName,
-              message: { content: "📷 **Evidence Screenshot**" }, // placeholder
+              message: { content: "📷 **Evidence Screenshot**" }, // placeholder, we'll edit or send more
               appliedTags: tagIds
             });
 

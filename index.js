@@ -200,8 +200,8 @@ client.on("messageCreate", async (message) => {
     }
 
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
-Copy of our AD below:
-
+**Our Advertisement:**
+\`\`\`
 # 🌍 PARGON SMP 🌍
 ## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
 
@@ -214,15 +214,14 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 • Events, builds, and long-term progression
 • Supports TLauncher ✅
 
-
-🛠️ Whether you’re a builder, explorer, redstone genius, or just here to vibe, Pargon SMP is the place to grow, grind, and have fun together.
+🛠️ Whether you're a builder, explorer, redstone genius, or just here to vibe, Pargon SMP is the place to grow, grind, and have fun together.
 
 🚀 Join early. Build your legacy.
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-|| Ping||
-
-*Make sure to include the ping in the screenshot.*`;
+|| Ping ||
+\`\`\`
+**Make sure to include the correct ping (${pingReq}) in the screenshot.**`;
 
     state.questions[3] = dynamicQ; // update the placeholder
     // Now fall through to send the next question
@@ -290,7 +289,8 @@ async function showSubmissionSummary(channel, state) {
   const store = modalData.store === "None" ? "None" : modalData.store || "None";
   const discordInvite = modalData.invite || "Unknown";
 
-  const embed = new EmbedBuilder()
+  // Create main embed with basic info
+  const mainEmbed = new EmbedBuilder()
     .setTitle("Complete Partnership Submission")
     .setColor(0x2b2d31)
     .addFields(
@@ -300,13 +300,30 @@ async function showSubmissionSummary(channel, state) {
       { name: "Previous Partner", value: prevPartner, inline: true },
       { name: "Store", value: store, inline: true },
       { name: "Discord Invite", value: discordInvite, inline: true },
-      { name: "Advertisement", value: ad || "None", inline: false },
-      { name: "Evidence", value: evidenceUrl ? `[Image](${evidenceUrl})` : "No evidence", inline: true },
-      { name: "Server Logo", value: serverPhotoUrl ? `[Image](${serverPhotoUrl})` : "Not provided", inline: true },
       { name: "Visibility", value: visibility, inline: true },
       { name: "Tags", value: tags, inline: false },
       { name: "Members", value: memberCount, inline: true }
     );
+
+  // Create ad embed with the advertisement in a separate message
+  const adEmbed = new EmbedBuilder()
+    .setTitle("📢 Advertisement")
+    .setColor(0x00aaff)
+    .setDescription(ad || "Not provided");
+
+  // Create server logo embed
+  const serverLogoEmbed = new EmbedBuilder()
+    .setTitle("🖼️ Server Logo")
+    .setColor(0x00aaff)
+    .setImage(serverPhotoUrl || null)
+    .setFooter({ text: serverPhotoUrl ? "" : "No server logo provided" });
+
+  // Create evidence embed
+  const evidenceEmbed = new EmbedBuilder()
+    .setTitle("📎 Evidence Screenshot")
+    .setColor(0x00aaff)
+    .setImage(evidenceUrl || null)
+    .setFooter({ text: evidenceUrl ? "" : "No evidence provided" });
 
   const acceptBtn = new ButtonBuilder()
     .setCustomId("p_accept")
@@ -317,8 +334,15 @@ async function showSubmissionSummary(channel, state) {
     .setLabel("Deny")
     .setStyle(ButtonStyle.Danger);
 
-  const msg = await channel.send({
-    embeds: [embed],
+  // Send all embeds as separate messages for better visibility
+  await channel.send({ embeds: [mainEmbed] });
+  await channel.send({ embeds: [serverLogoEmbed] });
+  await channel.send({ embeds: [adEmbed] });
+  await channel.send({ embeds: [evidenceEmbed] });
+  
+  // Send action buttons
+  const actionMsg = await channel.send({
+    content: "**Use the buttons below to accept or deny this partnership:**",
     components: [new ActionRowBuilder().addComponents(acceptBtn, denyBtn)]
   });
 
@@ -333,7 +357,7 @@ async function showSubmissionSummary(channel, state) {
     visibility,
     evidenceUrl,
     serverPhotoUrl,
-    messageId: msg.id
+    messageId: actionMsg.id
   });
 }
 
@@ -767,4 +791,4 @@ Type: ${type}`
 });
 
 // ================= LOGIN =================
-client.login(process.env.TOKEN);
+client.login(process.env.TOKEN

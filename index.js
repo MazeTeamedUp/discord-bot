@@ -200,7 +200,13 @@ client.on("messageCreate", async (message) => {
     }
 
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
-**Our Advertisement:**
+
+**Copy of our AD below in a new message:**
+
+Make sure to include the correct ping (${pingReq}) in the screenshot.`;
+
+    // Send the actual ad in a separate message
+    await message.channel.send(`**Our Advertisement:**
 \`\`\`
 # 🌍 PARGON SMP 🌍
 ## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
@@ -219,12 +225,10 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 🚀 Join early. Build your legacy.
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-|| Ping ||
-\`\`\`
-**Make sure to include the correct ping (${pingReq}) in the screenshot.**`;
+@ Ping
+\`\`\``);
 
     state.questions[3] = dynamicQ; // update the placeholder
-    // Now fall through to send the next question
   }
 
   // After tags question (step 6) we show the summary; after step 6 is done, we call summary
@@ -279,7 +283,6 @@ async function showSubmissionSummary(channel, state) {
   const ad = answers[0];
   const serverName = answers[1];
   const memberCount = answers[2];
-  const evidenceText = answers[3] || "";
   const visibility = answers[5];
   const tags = answers[6] || "Not selected";
 
@@ -311,19 +314,27 @@ async function showSubmissionSummary(channel, state) {
     .setColor(0x00aaff)
     .setDescription(ad || "Not provided");
 
-  // Create server logo embed
+  // Create server logo embed (SHOWN FIRST as requested)
   const serverLogoEmbed = new EmbedBuilder()
     .setTitle("🖼️ Server Logo")
-    .setColor(0x00aaff)
-    .setImage(serverPhotoUrl || null)
-    .setFooter({ text: serverPhotoUrl ? "" : "No server logo provided" });
+    .setColor(0x00aaff);
+  
+  if (serverPhotoUrl) {
+    serverLogoEmbed.setImage(serverPhotoUrl);
+  } else {
+    serverLogoEmbed.setDescription("No server logo provided");
+  }
 
   // Create evidence embed
   const evidenceEmbed = new EmbedBuilder()
     .setTitle("📎 Evidence Screenshot")
-    .setColor(0x00aaff)
-    .setImage(evidenceUrl || null)
-    .setFooter({ text: evidenceUrl ? "" : "No evidence provided" });
+    .setColor(0x00aaff);
+  
+  if (evidenceUrl) {
+    evidenceEmbed.setImage(evidenceUrl);
+  } else {
+    evidenceEmbed.setDescription("No evidence provided");
+  }
 
   const acceptBtn = new ButtonBuilder()
     .setCustomId("p_accept")
@@ -334,7 +345,7 @@ async function showSubmissionSummary(channel, state) {
     .setLabel("Deny")
     .setStyle(ButtonStyle.Danger);
 
-  // Send all embeds as separate messages for better visibility
+  // Send all embeds in order: main info, server logo (FIRST), ad, evidence
   await channel.send({ embeds: [mainEmbed] });
   await channel.send({ embeds: [serverLogoEmbed] });
   await channel.send({ embeds: [adEmbed] });
@@ -570,7 +581,7 @@ Type: ${type}`
       return;
     }
 
-    // ========== CLAIM / UNCLAIM / CLOSE (same as before) ==========
+    // ========== CLAIM / UNCLAIM / CLOSE ==========
     if (interaction.isButton() && interaction.customId === "claim") {
       if (!STAFF_ROLES.some(r => interaction.member.roles.cache.some(x => x.name === r)))
         return interaction.reply({ content: "❌ No permission", ephemeral: true });
@@ -708,7 +719,7 @@ Type: ${type}`
 
             const post = await forumChannel.threads.create({
               name: serverName,
-              message: { content: "📷 **Evidence Screenshot**" }, // placeholder, we'll edit or send more
+              message: { content: "📷 **Evidence Screenshot**" }, // placeholder
               appliedTags: tagIds
             });
 
@@ -791,4 +802,4 @@ Type: ${type}`
 });
 
 // ================= LOGIN =================
-client.login(process.env.TOKEN)
+client.login(process.env.TOKEN);

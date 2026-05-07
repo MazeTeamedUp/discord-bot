@@ -199,8 +199,9 @@ client.on("messageCreate", async (message) => {
       pingReq = "no ping";
     }
 
-    // Send the ad as a separate message
-    await message.channel.send(`**Our AD:**
+    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
+Copy of our AD below:
+
 # 🌍 PARGON SMP 🌍
 ## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
 
@@ -213,14 +214,15 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 • Events, builds, and long-term progression
 • Supports TLauncher ✅
 
+
 🛠️ Whether you're a builder, explorer, redstone genius, or just here to vibe, Pargon SMP is the place to grow, grind, and have fun together.
 
 🚀 Join early. Build your legacy.
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-@ Ping`);
+|| Ping||
 
-    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;
+*Make sure to include the ping in the screenshot.*`;
 
     state.questions[3] = dynamicQ; // update the placeholder
     // Now fall through to send the next question
@@ -288,15 +290,6 @@ async function showSubmissionSummary(channel, state) {
   const store = modalData.store === "None" ? "None" : modalData.store || "None";
   const discordInvite = modalData.invite || "Unknown";
 
-  // Send server photo as an actual image embed FIRST
-  if (serverPhotoUrl) {
-    const serverPhotoEmbed = new EmbedBuilder()
-      .setTitle("🖼️ Server Logo")
-      .setImage(serverPhotoUrl)
-      .setColor(0x00aaff);
-    await channel.send({ embeds: [serverPhotoEmbed] });
-  }
-
   const embed = new EmbedBuilder()
     .setTitle("Complete Partnership Submission")
     .setColor(0x2b2d31)
@@ -308,6 +301,7 @@ async function showSubmissionSummary(channel, state) {
       { name: "Store", value: store, inline: true },
       { name: "Discord Invite", value: discordInvite, inline: true },
       { name: "Advertisement", value: ad || "None", inline: false },
+      { name: "Server Logo", value: serverPhotoUrl ? `[Image](${serverPhotoUrl})` : "Not provided", inline: true },
       { name: "Evidence", value: evidenceUrl ? `[Image](${evidenceUrl})` : "No evidence", inline: true },
       { name: "Visibility", value: visibility, inline: true },
       { name: "Tags", value: tags, inline: false },
@@ -672,7 +666,7 @@ Type: ${type}`
       if (!submission) return interaction.reply({ content: "❌ Submission not found.", ephemeral: true });
 
       const isAccept = interaction.customId === "p_accept";
-      const { userId, serverName, ad, discordInvite, store, tags, evidenceUrl } = submission;
+      const { userId, serverName, ad, discordInvite, store, tags, evidenceUrl, serverPhotoUrl } = submission;
       const reviewer = interaction.user;
 
       if (isAccept) {
@@ -690,15 +684,15 @@ Type: ${type}`
 
             const post = await forumChannel.threads.create({
               name: serverName,
-              message: { content: "📷 **Evidence Screenshot**" }, // placeholder, we'll edit or send more
+              message: { content: "🖼️ **Server Logo**" },
               appliedTags: tagIds
             });
 
-            // Send evidence image first
-            if (evidenceUrl) {
-              await post.send({ embeds: [new EmbedBuilder().setImage(evidenceUrl)] });
+            // Send server logo first
+            if (serverPhotoUrl) {
+              await post.send({ embeds: [new EmbedBuilder().setTitle("🖼️ Server Logo").setImage(serverPhotoUrl).setColor(0x00aaff)] });
             } else {
-              await post.send("No evidence provided.");
+              await post.send("No server logo provided.");
             }
             // Send ad
             await post.send(`**📢 Advertisement**\n${ad}`);

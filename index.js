@@ -199,11 +199,6 @@ client.on("messageCreate", async (message) => {
       pingReq = "no ping";
     }
 
-    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD.
-
-**The correct ping for our ad is: ${pingReq}**
-Make sure to include the ping in the screenshot.`;
-
     // Send the ad as a separate message
     await message.channel.send(`**Our AD:**
 # 🌍 PARGON SMP 🌍
@@ -224,6 +219,8 @@ Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcom
 https://discord.gg/5pkSFeGzsv
 [Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
 @ Ping`);
+
+    const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;
 
     state.questions[3] = dynamicQ; // update the placeholder
     // Now fall through to send the next question
@@ -291,6 +288,15 @@ async function showSubmissionSummary(channel, state) {
   const store = modalData.store === "None" ? "None" : modalData.store || "None";
   const discordInvite = modalData.invite || "Unknown";
 
+  // Send server photo as an actual image embed FIRST
+  if (serverPhotoUrl) {
+    const serverPhotoEmbed = new EmbedBuilder()
+      .setTitle("🖼️ Server Logo")
+      .setImage(serverPhotoUrl)
+      .setColor(0x00aaff);
+    await channel.send({ embeds: [serverPhotoEmbed] });
+  }
+
   const embed = new EmbedBuilder()
     .setTitle("Complete Partnership Submission")
     .setColor(0x2b2d31)
@@ -302,21 +308,11 @@ async function showSubmissionSummary(channel, state) {
       { name: "Store", value: store, inline: true },
       { name: "Discord Invite", value: discordInvite, inline: true },
       { name: "Advertisement", value: ad || "None", inline: false },
-      { name: "Server Logo", value: serverPhotoUrl ? `[Image](${serverPhotoUrl})` : "Not provided", inline: true },
       { name: "Evidence", value: evidenceUrl ? `[Image](${evidenceUrl})` : "No evidence", inline: true },
       { name: "Visibility", value: visibility, inline: true },
       { name: "Tags", value: tags, inline: false },
       { name: "Members", value: memberCount, inline: true }
     );
-
-  // Send server photo as image embed
-  if (serverPhotoUrl) {
-    const serverPhotoEmbed = new EmbedBuilder()
-      .setTitle("🖼️ Server Logo")
-      .setImage(serverPhotoUrl)
-      .setColor(0x00aaff);
-    await channel.send({ embeds: [serverPhotoEmbed] });
-  }
 
   const acceptBtn = new ButtonBuilder()
     .setCustomId("p_accept")

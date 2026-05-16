@@ -83,9 +83,13 @@ const BASE_QUESTIONS = [
 
 // ================= ANNOUNCEMENT =================
 const ANNOUNCEMENT_MESSAGE = `🌐 **Server Information**
-🖥️ IP: \`play.paragonsmp.fun\`
+🖥️ IP Lifesteal: \`play.paragonsmp.fun\`
+⚔️ IP PvP: \`pvp.paragonsmp.fun\`
 🛒 Store: https://paragonsmp.fun
-🎮 Port: 25592`;
+🧷 PvP Port: 25062'
+🎮 Lifesteal Port: 25051`
+
+
 
 async function sendAnnouncement() {
   client.guilds.cache.forEach(guild => {

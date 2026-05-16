@@ -86,7 +86,7 @@ const ANNOUNCEMENT_MESSAGE = `🌐 **Server Information**
 🖥️ IP Lifesteal: \`play.paragonsmp.fun\`
 ⚔️ IP PvP: \`pvp.paragonsmp.fun\`
 🛒 Store: https://paragonsmp.fun
-🧷 PvP Port: 25062'
+🧷 PvP Port: 25062
 🎮 Lifesteal Port: 25051`
 
 

@@ -204,24 +204,47 @@ client.on("messageCreate", async (message) => {
     }
 
     // Send the ad as a SEPARATE message
-    await message.channel.send(`**Our AD:**
-# 🌍 PARGON SMP 🌍
-## ✨ An Up-and-Coming Survival Multiplayer Experience! ✨
+    await message.channel.send(`
+▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+**👑 WELCOME TO PARAGON SMP 👑**
+▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
 
-Looking for a fresh SMP to call home? Pargon SMP is opening its doors and welcoming new players!
 
-🔥 What We Offer:
-• Survival Multiplayer (SMP) gameplay
-• Friendly & active community
-• Fair rules & chill moderation
-• Events, builds, and long-term progression
-• Supports TLauncher ✅
+> *An up-and-coming Survival Multiplayer experience!*
 
-🛠️ Whether you're a builder, explorer, redstone genius, or just here to vibe, Pargon SMP is the place to grow, grind, and have fun together.
+**Looking for a fresh SMP to call home, build your wealth, and battle it out?**  
+Paragon SMP is opening its doors and welcoming new players!
 
-🚀 Join early. Build your legacy.
-https://discord.gg/5pkSFeGzsv
-[Paragon advertise video](https://www.youtube.com/shorts/tUPSwF3Ymxw)
+---
+
+### 🔥 **WHAT WE OFFER**
+
+⚔️ **PvP & Lifesteal Action**  
+*Gear up, survive, and steal hearts in thrilling combat.*
+
+💰 **Player Economy & Shops**  
+*Grind, trade, and become the richest player on the server.*
+
+🎁 **Epic Crates & Rewards**  
+*Test your luck and unlock top-tier loot!*
+
+🛠️ **Classic Survival & Redstone**  
+*Build massive bases, engineer crazy contraptions, or just chill.*
+
+🤝 **Active Community**  
+*Fair rules, dedicated moderation, and long-term progression.*
+
+🔓 **TLauncher Supported** ✅  
+*Everyone is welcome to join the fun.*
+
+---
+
+> *Whether you're a master builder, a ruthless PvP legend, or just here to vibe with friends — Paragon is the place to grow, grind, and build your legacy.*
+
+**🚀 Join early. Dominate the server. Make your mark.**
+
+🔗 [**Join the Discord**](https://discord.gg/5pkSFeGzsv)  
+🎬 [**Watch the Trailer**](https://www.youtube.com/shorts/tUPSwF3Ymxw)
 @ Ping`);
 
     // Send the question/instructions as a separate message

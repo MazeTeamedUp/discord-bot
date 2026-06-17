@@ -83,11 +83,11 @@ const BASE_QUESTIONS = [
 
 // ================= ANNOUNCEMENT =================
 const ANNOUNCEMENT_MESSAGE = `🌐 **Server Information**
-🖥️ IP Lifesteal: \`play.paragonsmp.fun\`
-⚔️ IP PvP: \`pvp.paragonsmp.fun\`
-🛒 Store: https://store.paragonsmp.fun
-🧷 PvP Port: 25062
-🎮 Lifesteal Port: 25051`
+🖥️ IP Lifesteal: \`soon\`
+⚔️ IP PvP: \`soon\`
+🛒 Store: https://store.boundmc.net
+🧷 PvP Port: soon
+🎮 Lifesteal Port: soon`
 
 
 
@@ -205,47 +205,27 @@ client.on("messageCreate", async (message) => {
 
     // Send the ad as a SEPARATE message
     await message.channel.send(`
-▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
-**👑 WELCOME TO PARAGON SMP 👑**
-▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+# 🌟 BoundMC 
 
+**Looking for a new Actual good minecraft server?**
+BoundMC offers an exciting experience for both new and experienced players!
 
-> *An up-and-coming Survival Multiplayer experience!*
+╭━━━━━━━━━━━━━╮
+┃ 💖 Lifesteal SMP
+┃ ⚔️ Competitive PvP
+┃ 🌐 Cracked Supported
+┃ 🔄 1.8 - Latest
+┃ 👨‍👩‍👧‍👦 Family Friendly
+╰━━━━━━━━━━━━━╯
 
-**Looking for a fresh SMP to call home, build your wealth, and battle it out?**  
-Paragon SMP is opening its doors and welcoming new players!
+🎯 Join today and start your journey.
+🏆 Become the strongest player.
+💀 Steal hearts. Survive longer.
 
----
-
-### 🔥 **WHAT WE OFFER**
-
-⚔️ **PvP & Lifesteal Action**  
-*Gear up, survive, and steal hearts in thrilling combat.*
-
-💰 **Player Economy & Shops**  
-*Grind, trade, and become the richest player on the server.*
-
-🎁 **Epic Crates & Rewards**  
-*Test your luck and unlock top-tier loot!*
-
-🛠️ **Classic Survival & Redstone**  
-*Build massive bases, engineer crazy contraptions, or just chill.*
-
-🤝 **Active Community**  
-*Fair rules, dedicated moderation, and long-term progression.*
-
-🔓 **TLauncher Supported** ✅  
-*Everyone is welcome to join the fun.*
-
----
-
-> *Whether you're a master builder, a ruthless PvP legend, or just here to vibe with friends — Paragon is the place to grow, grind, and build your legacy.*
-
-**🚀 Join early. Dominate the server. Make your mark.**
-
-🔗 [**Join the Discord**](https://discord.gg/5pkSFeGzsv)  
-🎬 [**Watch the Trailer**](https://www.youtube.com/shorts/tUPSwF3Ymxw)
-@ Ping`);
+**BoundMC**
+**Fight • Survive**
+> **Ping:**
+https://discord.gg/5pkSFeGzsv`);
 
     // Send the question/instructions as a separate message
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;

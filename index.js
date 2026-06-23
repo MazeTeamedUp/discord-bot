@@ -35,26 +35,24 @@ app.listen(3000, () => {
 });
 
 // ================= CONFIG =================
-const PANEL_CHANNEL_ID = "1411760024363204800";
+const PANEL_CHANNEL_ID = "1518460704389206189";
 const TICKET_CATEGORY_ID = "1456670139486572818";
-const TRANSCRIPT_CHANNEL_ID = "1456670136491704414";
-const CHAT_CHANNEL_NAME = "『💬』ᴄʜᴀᴛ";
+const TRANSCRIPT_CHANNEL_ID = "1518466892715524116";
+const CHAT_CHANNEL_NAME = "💬〢chat";
 const STAFF_ROLES = [
-  "Overall",
-  "Founder - Right hand man",
-  "Creator",
-  "Developer 🔨",
+  "Owner",
+  "Founder - Right Hand Man",
   "Staff Manager",
-  "Admin",
-  "Senior Moderator",
+  "Manager",
+  "Sr. Admin",
+  "Sr. Mod",
   "Mod",
-  "Junior Moderator",
   "Helper",
-  "Staff-ping"
+  "Staff"
 ];
-const PARTNERSHIP_ROLE_ID = "1462436008372080745";
-const PARTNER_LOG_CHANNEL_ID = "1457341004075106509";
-const FORUM_CHANNEL_ID = "1501613748551548938"; // forum for accepted partnership posts
+const PARTNERSHIP_ROLE_ID = "1518961851784757328";
+const PARTNER_LOG_CHANNEL_ID = "1456670139486572818";
+const FORUM_CHANNEL_ID = "1518530394742325268"; // forum for accepted partnership posts
 
 let panelSent = false;
 
@@ -225,7 +223,7 @@ BoundMC offers an exciting experience for both new and experienced players!
 **BoundMC**
 **Fight • Survive**
 > **Ping:**
-https://discord.gg/5pkSFeGzsv`);
+https://discord.gg/u798n7MhvZ`);
 
     // Send the question/instructions as a separate message
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;

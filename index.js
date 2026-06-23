@@ -223,7 +223,7 @@ BoundMC offers an exciting experience for both new and experienced players!
 **BoundMC**
 **Fight • Survive**
 > **Ping:**
-https://discord.gg/u798n7MhvZ`);
+https://discord.gg/A2WqhmHpC6`);
 
     // Send the question/instructions as a separate message
     const dynamicQ = `Please send our AD with the correct ping (${pingReq}) and attach a FULL screenshot of evidence that you sent our AD. Make sure to include the ping in the screenshot.`;
